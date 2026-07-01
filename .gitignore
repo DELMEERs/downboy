@@ -1,0 +1,19 @@
+# bins
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+out/
+
+# secrets
+.env
+*.local
+
+# cache
+.golangci-lint.cache/
+
+# random stuff
+.DS_Store
+Thumbs.db
