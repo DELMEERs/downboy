@@ -1,6 +1,7 @@
 package main
 
 import (
+	"downboy/notifier"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,7 +10,7 @@ import (
 	"time"
 )
 
-func CheckURL(urlStr string, wg *sync.WaitGroup) bool {
+func CheckURL(urlStr string, wg *sync.WaitGroup, n notifier.Notifier) bool {
 
 	if wg != nil {
 		defer wg.Done()
@@ -28,20 +29,21 @@ func CheckURL(urlStr string, wg *sync.WaitGroup) bool {
 		if lastIndex := strings.LastIndex(errStr, ": "); lastIndex != -1 {
 			errStr = errStr[lastIndex+2:]
 		}
-		fmt.Printf("[error] %s - %v\n", cleanURL, errStr)
+		n.NotifyError(cleanURL, errStr)
 		return false
 	}
 
 	duration := time.Since(start).Round(time.Millisecond)
 	resp.Body.Close()
 
-	fmt.Printf("[%d] %s - %s\n", resp.StatusCode, cleanURL, duration)
+	n.NotifySuccess(cleanURL, resp.StatusCode, duration)
 	return true
 
 }
 
 func main() {
 	ticker := time.NewTicker(10 * time.Second)
+	note := notifier.ConsoleNotifier{}
 	defer ticker.Stop()
 
 	if len(os.Args[1:]) == 0 {
@@ -52,7 +54,7 @@ func main() {
 	var activeWebsites []string
 
 	for _, value := range os.Args[1:] {
-		if CheckURL(value, nil) {
+		if CheckURL(value, nil, note) {
 			activeWebsites = append(activeWebsites, value)
 		}
 	}
@@ -66,7 +68,7 @@ func main() {
 		var wg sync.WaitGroup
 		for _, value := range activeWebsites {
 			wg.Add(1)
-			go CheckURL(value, &wg)
+			go CheckURL(value, &wg, note)
 		}
 		wg.Wait()
 		<-ticker.C
