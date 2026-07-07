@@ -6,7 +6,13 @@ dist/
 *.so
 *.dylib
 out/
-downboy
+/downboy
+
+# go test & profiles
+*.test
+*.out
+*.prof
+coverage.txt
 
 # secrets
 .env
@@ -15,6 +21,7 @@ downboy
 # cache
 .golangci-lint.cache/
 
-# random stuff
+# ides & os stuff
+.vscode/
 .DS_Store
 Thumbs.db
