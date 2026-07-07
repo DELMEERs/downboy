@@ -40,6 +40,8 @@ func main() {
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			fmt.Printf("[%d] %s - %s\n", resp.StatusCode, value, duration.Round(time.Millisecond))
+		} else if resp.StatusCode >= 400 {
+			fmt.Printf("[%d] %s - %s\n", resp.StatusCode, value, duration.Round(time.Millisecond))
 		}
 	}
 
