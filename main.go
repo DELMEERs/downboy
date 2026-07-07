@@ -9,9 +9,11 @@ import (
 	"time"
 )
 
-func CheckURL(urlStr string, wg *sync.WaitGroup) {
+func CheckURL(urlStr string, wg *sync.WaitGroup) bool {
 
-	defer wg.Done()
+	if wg != nil {
+		defer wg.Done()
+	}
 	if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
 		urlStr = "http://" + urlStr
 	}
@@ -27,28 +29,47 @@ func CheckURL(urlStr string, wg *sync.WaitGroup) {
 			errStr = errStr[lastIndex+2:]
 		}
 		fmt.Printf("[error] %s - %v\n", cleanURL, errStr)
-		return
+		return false
 	}
 
 	duration := time.Since(start).Round(time.Millisecond)
 	resp.Body.Close()
 
 	fmt.Printf("[%d] %s - %s\n", resp.StatusCode, cleanURL, duration)
+	return true
 
 }
 
 func main() {
-	var wg sync.WaitGroup
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
 
 	if len(os.Args[1:]) == 0 {
 		fmt.Println("using the application: ./downboy [websites]")
 		os.Exit(1)
 	}
 
+	var activeWebsites []string
+
 	for _, value := range os.Args[1:] {
-		wg.Add(1)
-		go CheckURL(value, &wg)
+		if CheckURL(value, nil) {
+			activeWebsites = append(activeWebsites, value)
+		}
 	}
-	wg.Wait()
+
+	if len(activeWebsites) == 0 {
+		fmt.Println("no working websites found")
+		os.Exit(1)
+	}
+
+	for {
+		var wg sync.WaitGroup
+		for _, value := range activeWebsites {
+			wg.Add(1)
+			go CheckURL(value, &wg)
+		}
+		wg.Wait()
+		<-ticker.C
+	}
 
 }
