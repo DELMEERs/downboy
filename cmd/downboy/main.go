@@ -18,8 +18,6 @@ func main() {
 	}
 
 	note := notifier.ConsoleNotifier{}
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
 
 	var activeWebsites []string
 	for _, url := range urls {
@@ -39,6 +37,6 @@ func main() {
 			go checker.CheckURL(url, &wg, note)
 		}
 		wg.Wait()
-		<-ticker.C
+		time.Sleep(10 * time.Second)
 	}
 }
