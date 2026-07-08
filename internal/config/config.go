@@ -8,9 +8,18 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type Secrets struct {
-	TelegramBotToken string
-	TelegramChatID   string
+type AppSecrets struct {
+	Telegram *TelegramSecrets
+	Discord  *DiscordSecrets
+}
+
+type TelegramSecrets struct {
+	BotToken string
+	ChatID   string
+}
+
+type DiscordSecrets struct {
+	WebhookURL string
 }
 
 // the function takes a file name and returns a list of URLs or an error
@@ -31,18 +40,26 @@ func LoadUrlsFromJSON(filepath string) ([]string, error) {
 	return urls, nil
 }
 
-func LoadSecrets() (*Secrets, error) {
+func LoadSecrets() *AppSecrets {
 	_ = godotenv.Load()
 
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
-	chatID := os.Getenv("TELEGRAM_CHAT_ID")
+	secrets := &AppSecrets{}
+	tgToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	tgChatID := os.Getenv("TELEGRAM_CHAT_ID")
 
-	if token == "" || chatID == "" {
-		return nil, fmt.Errorf("missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in environment")
+	if tgToken != "" && tgChatID != "" {
+		secrets.Telegram = &TelegramSecrets{
+			BotToken: tgToken,
+			ChatID:   tgChatID,
+		}
 	}
 
-	return &Secrets{
-		TelegramBotToken: token,
-		TelegramChatID:   chatID,
-	}, nil
+	discordWebhook := os.Getenv("DISCORD_WEBHOOK_URL")
+	if discordWebhook != "" {
+		secrets.Discord = &DiscordSecrets{
+			WebhookURL: discordWebhook,
+		}
+	}
+
+	return secrets
 }

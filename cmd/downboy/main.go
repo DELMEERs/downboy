@@ -52,13 +52,20 @@ func main() {
 	var activeNotifiers []notifier.Notifier
 	activeNotifiers = append(activeNotifiers, notifier.ConsoleNotifier{})
 
-	secrets, err := config.LoadSecrets()
-	if err != nil {
-		fmt.Println("[info] telegram credentials not found, bot notifications disabled")
-	} else {
+	secrets := config.LoadSecrets()
+
+	if secrets.Telegram != nil {
 		fmt.Println("[info] telegram notifier added to broadcast list")
-		tgNote := notifier.NewTelegramNotifier(secrets.TelegramBotToken, secrets.TelegramChatID)
+		tgNote := notifier.NewTelegramNotifier(secrets.Telegram.BotToken, secrets.Telegram.ChatID)
 		activeNotifiers = append(activeNotifiers, tgNote)
+	} else {
+		fmt.Println("[info] telegram credentials missing, skipped")
+	}
+
+	if secrets.Discord != nil {
+		// fmt.Println("[info] discord notifier added to broadcast list")
+	} else {
+		// fmt.Println("[info] discord credentials missing, skipped")
 	}
 
 	note := notifier.NewMultiNotifier(activeNotifiers...)
