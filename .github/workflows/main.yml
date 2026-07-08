@@ -2,12 +2,13 @@ name: go release
 
 on:
   push:
-    branches: [ "main", "ci/cli-workflow"  ]
-    tags: [ "v*.*.*" ] 
+    tags:
+      - "v*.*.*"
+    branches:
+      - "main"
 
 permissions:
   contents: write
-
 jobs:
   test-and-build:
     name: run tests, build and release
