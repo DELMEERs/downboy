@@ -6,7 +6,6 @@ dist/
 *.so
 *.dylib
 out/
-/downboy
 
 # go test & profiles
 *.test
