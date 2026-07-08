@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"sync"
@@ -8,25 +9,34 @@ import (
 
 	"downboy/internal/checker"
 	"downboy/internal/notifier"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
 )
 
 func main() {
-	urls := os.Args[1:]
+	flag.Parse()
+	urls := flag.Args()
+
 	if len(urls) == 0 {
-		fmt.Println("using the application: ./downboy [websites]")
+		fmt.Println(errorStyle.Render("using the application: ./downboy [websites]"))
 		os.Exit(1)
 	}
 
 	note := notifier.ConsoleNotifier{}
-
 	var activeWebsites []string
+
 	for _, url := range urls {
 		if checker.CheckURL(url, nil, note) {
 			activeWebsites = append(activeWebsites, url)
 		}
 	}
+
 	if len(activeWebsites) == 0 {
-		fmt.Println("no working websites found")
+		fmt.Println(errorStyle.Render("no working websites found"))
 		os.Exit(1)
 	}
 
