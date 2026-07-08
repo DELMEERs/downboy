@@ -4,7 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/joho/godotenv"
 )
+
+type Secrets struct {
+	TelegramBotToken string
+	TelegramChatID   string
+}
 
 // the function takes a file name and returns a list of URLs or an error
 func LoadUrlsFromJSON(filepath string) ([]string, error) {
@@ -22,4 +29,20 @@ func LoadUrlsFromJSON(filepath string) ([]string, error) {
 	}
 
 	return urls, nil
+}
+
+func LoadSecrets() (*Secrets, error) {
+	_ = godotenv.Load()
+
+	token := os.Getenv("TELEGRAM_BOT_TOKEN")
+	chatID := os.Getenv("TELEGRAM_CHAT_ID")
+
+	if token == "" || chatID == "" {
+		return nil, fmt.Errorf("missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID in environment")
+	}
+
+	return &Secrets{
+		TelegramBotToken: token,
+		TelegramChatID:   chatID,
+	}, nil
 }

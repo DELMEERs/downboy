@@ -49,7 +49,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	note := notifier.ConsoleNotifier{}
+	var activeNotifiers []notifier.Notifier
+	activeNotifiers = append(activeNotifiers, notifier.ConsoleNotifier{})
+
+	secrets, err := config.LoadSecrets()
+	if err != nil {
+		fmt.Println("[info] telegram credentials not found, bot notifications disabled")
+	} else {
+		fmt.Println("[info] telegram notifier added to broadcast list")
+		tgNote := notifier.NewTelegramNotifier(secrets.TelegramBotToken, secrets.TelegramChatID)
+		activeNotifiers = append(activeNotifiers, tgNote)
+	}
+
+	note := notifier.NewMultiNotifier(activeNotifiers...)
+
 	var activeWebsites []string
 
 	for _, url := range urls {
