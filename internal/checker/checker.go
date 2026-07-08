@@ -9,6 +9,9 @@ import (
 	"downboy/internal/notifier"
 )
 
+// httpHead is swapped out in tests to avoid real network/DNS calls.
+var httpHead = http.Head
+
 // CheckURL sends a HEAD request to validate website availability.
 func CheckURL(url string, wg *sync.WaitGroup, n notifier.Notifier) bool {
 	if wg != nil {
@@ -23,7 +26,7 @@ func CheckURL(url string, wg *sync.WaitGroup, n notifier.Notifier) bool {
 	clean = strings.TrimPrefix(clean, "http://")
 
 	start := time.Now()
-	resp, err := http.Head(url)
+	resp, err := httpHead(url)
 	if err != nil {
 		errStr := err.Error()
 		if idx := strings.LastIndex(errStr, ": "); idx != -1 {
