@@ -37,12 +37,12 @@ the project uses a `Makefile` to manage build, test, and formatting workflows:
 ./downboy google.com github.com yandex.ru
 ```
 
-## 2. running with a configuration file
+### 2. running with a configuration file
 ```bash
 ./downboy --config config.json
 ```
 
-## 3. setting up telegram notifications
+### 3. setting up telegram notifications
 to enable telegram alerts, create a .env file in the project root and specify your keys:
 ```TELEGRAM_BOT_TOKEN=your_secret_bot_token```
 ```TELEGRAM_CHAT_ID=your_telegram_chat_id```
