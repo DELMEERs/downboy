@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"downboy/internal/checker"
+	"downboy/internal/config"
 	"downboy/internal/notifier"
 
 	"github.com/charmbracelet/lipgloss"
@@ -18,11 +19,33 @@ var (
 )
 
 func main() {
+	configPath := flag.String("config", "", "path to json config file containing website urls")
+
+	flag.Usage = func() {
+		fmt.Println("usage of downboy:")
+		fmt.Println("  ./downboy [websites...]       Provide space-separated URLs directly")
+		fmt.Println("  ./downboy --config <path>     Load URLs from a JSON config file")
+	}
+
 	flag.Parse()
 	urls := flag.Args()
 
 	if len(urls) == 0 {
-		fmt.Println(errorStyle.Render("using the application: ./downboy [websites]"))
+		if *configPath == "" {
+			flag.Usage()
+			os.Exit(1)
+		}
+
+		configUrls, err := config.LoadUrlsFromJSON(*configPath)
+		if err != nil {
+			fmt.Println(errorStyle.Render("error loading websites from config:"), err)
+			os.Exit(1)
+		}
+		urls = configUrls
+	}
+
+	if len(urls) == 0 {
+		flag.Usage()
 		os.Exit(1)
 	}
 
