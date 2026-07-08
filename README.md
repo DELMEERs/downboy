@@ -34,12 +34,12 @@ the project uses a `Makefile` to manage build, test, and formatting workflows:
 
 ### 1. running directly with a list of websites
 ```bash
-./dist/downboy google.com github.com yandex.ru
+./downboy google.com github.com yandex.ru
 ```
 
 ## 2. running with a configuration file
 ```bash
-./dist/downboy --config config.json
+./downboy --config config.json
 ```
 
 ## 3. setting up telegram notifications
