@@ -11,6 +11,7 @@ help:
 	@echo "  make test-v       - run tests with verbose output"
 	@echo "  make test-race    - run tests with race detector"
 	@echo "  make test-cover   - run tests with coverage report"
+	@echo "  make lint         - run go vet static checks"
 	@echo "  make fmt          - format code with gofmt"
 	@echo "  make clean        - remove build artifacts"
 	@echo ""
@@ -51,6 +52,12 @@ test-cover:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "✓ coverage report saved to coverage.html"
+
+# run static analysis
+lint:
+	go vet ./..
+	@echo "✓ lint complete"
+
 
 # format code
 fmt:
