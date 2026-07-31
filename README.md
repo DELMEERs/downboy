@@ -44,18 +44,5 @@ the project uses a `Makefile` to manage build, test, and formatting workflows:
 
 ### 3. setting up telegram notifications
 to enable telegram alerts, create a .env file in the project root and specify your keys:
-```TELEGRAM_BOT_TOKEN=your_secret_bot_token```
-```TELEGRAM_CHAT_ID=your_telegram_chat_id```
-
-## 🧬 project architecture
-the codebase follows the standard go project layout:
-```
-├── cmd/
-│   └── downboy/          # application entry point (main.go)
-├── internal/
-│   ├── checker/          # network request logic and unit tests
-│   ├── config/           # configuration file and env variable parsing
-│   └── notifier/         # alert dispatch interfaces and implementations
-├── Makefile              # build automation and ci scripts
-└── go.mod                # project dependency management
-```
+`TELEGRAM_BOT_TOKEN=your_secret_bot_token`
+`TELEGRAM_CHAT_ID=your_telegram_chat_id`
