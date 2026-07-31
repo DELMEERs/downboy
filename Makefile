@@ -55,7 +55,7 @@ test-cover:
 
 # run static analysis
 lint:
-	go vet ./..
+	go vet ./...
 	@echo "✓ lint complete"
 
 

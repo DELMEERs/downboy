@@ -1,18 +1,20 @@
 # 🐕 downboy
 
-**downboy** — is a lightweight and fast cli tool written in go for parallel website uptime monitoring.
+**downboy** — is a lightweight, fast, and scalable cli tool written in go for parallel website uptime monitoring.
 it checks server status in real time and sends alerts to communication channels when issues are detected.
 
 ---
 
 ## 🚀 features
 
-* ⚡️ **parallel monitoring:** every website check runs concurrently in a separate goroutine synchronized via `sync.WaitGroup`.
-* ⚙️ **traffic optimization:** uses fast http `HEAD` requests instead of loading full web pages.
-* 📦 **flexible configuration:** supports passing a list of urls directly via command-line arguments or loading them from a json file.
-* 📑 **multi-channel notifications:** a modular system (`MultiNotifier`) that prints status to the console and sends urgent alerts to a telegram bot.
-* 🔒 **secure secrets:** automatically loads tokens and keys from environment variables using `.env` files.
-* 🧪 **reliability:** network check logic is completely isolated and covered by unit tests using mocks.
+* ⚡️ **scalable worker pool:** processes hundreds or thousands of url checks concurrently with configurable worker limits (`--concurrency`).
+* ⚙️ **traffic & protocol optimization:** uses fast HTTP `HEAD` requests with automatic fallback to `GET` (for `405 Method Not Allowed` servers).
+* ⏱️ **resilience & timeouts:** context-aware network checks with configurable timeouts (`--timeout`) and automatic retry backoff (`--retries`).
+* 📦 **flexible configuration:** accepts URLs via CLI arguments or JSON configuration files (`--config`).
+* 📑 **multi-channel notifications:** modular system (`MultiNotifier`) supporting console output, telegram bots, and discord webhooks.
+* 📊 **single-pass CI mode:** run single-pass checks (`--once`) with formatted lipgloss summary reports and exit codes for CI/CD pipelines.
+* 🔒 **secure secrets:** automatically loads secrets from environment variables and `.env` files.
+* 🧪 **robust testing:** comprehensive test suite covering network checks, retries, and notification channels.
 
 ---
 
@@ -26,6 +28,7 @@ the project uses a `Makefile` to manage build, test, and formatting workflows:
 | `make run` | compiles and immediately runs the tool |
 | `make test` | runs all unit tests in the project |
 | `make test-cover` | runs tests and generates an html code coverage report |
+| `make lint` | runs `go vet ./...` static analysis |
 | `make fmt` | automatically formats source code using `go fmt` |
 
 ---
@@ -37,12 +40,26 @@ the project uses a `Makefile` to manage build, test, and formatting workflows:
 ./downboy google.com github.com yandex.ru
 ```
 
-### 2. running with a configuration file
+### 2. running in single-pass mode (for CI/CD)
+```bash
+./downboy --once google.com github.com
+```
+
+### 3. custom concurrency, timeout, and retry settings
+```bash
+./downboy -c 50 -t 3 -r 2 -i 15 google.com github.com
+```
+
+### 4. running with a configuration file
 ```bash
 ./downboy --config config.json
 ```
 
-### 3. setting up telegram notifications
-to enable telegram alerts, create a .env file in the project root and specify your keys:
-`TELEGRAM_BOT_TOKEN=your_secret_bot_token`
-`TELEGRAM_CHAT_ID=your_telegram_chat_id`
+### 5. setting up notifications (Telegram & Discord)
+To enable alerts, create a `.env` file in the project root:
+```env
+TELEGRAM_BOT_TOKEN=your_secret_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your_webhook_id/token
+```
+

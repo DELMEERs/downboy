@@ -209,3 +209,56 @@ func TestCheckURL_RealServer(t *testing.T) {
 		t.Errorf("expected protocol prefix to be stripped from URL in notification but it stayed: %q", spy.lastURL)
 	}
 }
+
+func TestCheckURLWithOptions_RealServer405Fallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}))
+	defer server.Close()
+
+	spy := &spyNotifier{}
+	opts := CheckOptions{
+		Timeout: 2 * time.Second,
+		Retries: 0,
+	}
+
+	res := CheckURLWithOptions(t.Context(), server.URL, nil, spy, opts)
+	if !res.IsUp {
+		t.Errorf("expected IsUp true on 405 fallback to GET, got false")
+	}
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("expected status code 200 after GET fallback, got %d", res.StatusCode)
+	}
+}
+
+func TestCheckURLWithOptions_Retries(t *testing.T) {
+	attempts := 0
+	withMockHead(t, func(url string) (*http.Response, error) {
+		attempts++
+		if attempts < 2 {
+			return nil, errors.New("temporary failure")
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})
+
+	spy := &spyNotifier{}
+	opts := CheckOptions{
+		Timeout: 1 * time.Second,
+		Retries: 2,
+	}
+
+	res := CheckURLWithOptions(t.Context(), "http://retry.example", nil, spy, opts)
+	if !res.IsUp {
+		t.Errorf("expected IsUp true after retry, got false")
+	}
+	if attempts != 2 {
+		t.Errorf("expected 2 attempts, got %d", attempts)
+	}
+}
