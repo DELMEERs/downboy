@@ -134,7 +134,7 @@ func main() {
 	defer ticker.Stop()
 
 	for {
-		fmt.Printf(infoStyle.Render("[%s] running health checks...\n"), time.Now().Format("15:04:05"))
+		fmt.Println(infoStyle.Render(fmt.Sprintf("[%s] running health checks...", time.Now().Format("15:04:05"))))
 		_ = runWorkerPool(ctx, urls, *concurrency, note, opts)
 
 		select {
