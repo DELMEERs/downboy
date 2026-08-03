@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="#">
+    <img src="assets/images/logo/logo_without_bg.png" alt="Project Logo" width="600" style="max-width: 100%; height: auto;" />
+  </a>
+</p>
+
 # 🐕 downboy
 
 **downboy** — is a lightweight, fast, and scalable cli tool written in go for parallel website uptime monitoring.
@@ -15,21 +21,6 @@ it checks server status in real time and sends alerts to communication channels 
 * 📊 **single-pass CI mode:** run single-pass checks (`--once`) with formatted lipgloss summary reports and exit codes for CI/CD pipelines.
 * 🔒 **secure secrets:** automatically loads secrets from environment variables and `.env` files.
 * 🧪 **robust testing:** comprehensive test suite covering network checks, retries, and notification channels.
-
----
-
-## 🛠 automation and building
-
-the project uses a `Makefile` to manage build, test, and formatting workflows:
-
-| command | description |
-| :--- | :--- |
-| `make build` | builds the executable binary for the current operating system |
-| `make run` | compiles and immediately runs the tool |
-| `make test` | runs all unit tests in the project |
-| `make test-cover` | runs tests and generates an html code coverage report |
-| `make lint` | runs `go vet ./...` static analysis |
-| `make fmt` | automatically formats source code using `go fmt` |
 
 ---
 

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"downboy/internal/theme"
 )
 
 // Notifier is an interface that defines methods for sending status notifications.
@@ -34,9 +34,9 @@ const (
 var SpinnerFrames = []string{"[   ]", "[-  ]", "[-- ]", "[---]", "[ --]", "[  -]"}
 
 var (
-	successStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00FF87"))
-	failureStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF4365"))
-	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+	successStyle = theme.SuccessStyle
+	failureStyle = theme.FailureStyle
+	spinnerStyle = theme.SpinnerStyle
 )
 
 type checkItem struct {

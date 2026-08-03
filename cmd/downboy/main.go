@@ -14,21 +14,16 @@ import (
 	"downboy/internal/checker"
 	"downboy/internal/config"
 	"downboy/internal/notifier"
-
-	"github.com/charmbracelet/lipgloss"
+	"downboy/internal/theme"
 )
 
 var (
-	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
-	upBadgeStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00FF87"))
-	downBadge    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF4365"))
-	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
-	errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4365")).Bold(true)
-	summaryStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#7D56F4")).
-			Padding(0, 1).
-			MarginTop(1)
+	titleStyle   = theme.TitleStyle
+	upBadgeStyle = theme.UpBadgeStyle
+	downBadge    = theme.DownBadgeStyle
+	infoStyle    = theme.InfoStyle
+	errorStyle   = theme.ErrorStyle
+	summaryStyle = theme.SummaryStyle
 )
 
 func main() {
