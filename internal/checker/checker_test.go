@@ -17,7 +17,7 @@ type spyNotifier struct {
 	errorCalled   bool
 }
 
-func (s *spyNotifier) NotifySuccess(url string, statusCode int, duration time.Duration) {
+func (s *spyNotifier) NotifySuccess(url string, statusCode int, _ time.Duration) {
 	s.lastURL = url
 	s.lastStatus = statusCode
 	s.successCalled = true
@@ -71,7 +71,7 @@ func TestCheckURL_ErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			withMockHead(t, func(url string) (*http.Response, error) {
+			withMockHead(t, func(_ string) (*http.Response, error) {
 				return nil, tt.mockErr
 			})
 
@@ -168,7 +168,7 @@ func TestCheckURL_SuccessCases(t *testing.T) {
 }
 
 func TestCheckURL_NilWaitGroup(t *testing.T) {
-	withMockHead(t, func(url string) (*http.Response, error) {
+	withMockHead(t, func(_ string) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 	})
 
@@ -185,7 +185,7 @@ func TestCheckURL_NilWaitGroup(t *testing.T) {
 }
 
 func TestCheckURL_RealServer(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -240,7 +240,7 @@ func TestCheckURLWithOptions_RealServer405Fallback(t *testing.T) {
 
 func TestCheckURLWithOptions_Retries(t *testing.T) {
 	attempts := 0
-	withMockHead(t, func(url string) (*http.Response, error) {
+	withMockHead(t, func(_ string) (*http.Response, error) {
 		attempts++
 		if attempts < 2 {
 			return nil, errors.New("temporary failure")

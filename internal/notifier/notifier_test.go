@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestConsoleNotifier(t *testing.T) {
+func TestConsoleNotifier(_ *testing.T) {
 	cn := ConsoleNotifier{}
 	cn.NotifySuccess("example.com", 200, 50*time.Millisecond)
 	cn.NotifyError("example.com", "connection timeout")
@@ -60,7 +60,7 @@ type mockNotifier struct {
 	errorCount   int
 }
 
-func (m *mockNotifier) NotifySuccess(url string, statusCode int, duration time.Duration) {
+func (m *mockNotifier) NotifySuccess(_ string, _ int, _ time.Duration) {
 	m.successCount++
 }
 
