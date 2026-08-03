@@ -138,7 +138,7 @@ func doRequestWithContext(ctx context.Context, client *http.Client, targetURL st
 		return httpHead(targetURL)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, targetURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, targetURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func doRequestWithContext(ctx context.Context, client *http.Client, targetURL st
 	// Fallback to GET if HEAD method is not allowed (HTTP 405)
 	if resp.StatusCode == http.StatusMethodNotAllowed {
 		_ = resp.Body.Close()
-		getReq, getErr := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+		getReq, getErr := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, http.NoBody)
 		if getErr != nil {
 			return nil, getErr
 		}
