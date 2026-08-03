@@ -87,8 +87,6 @@ func run() int {
 	}
 
 	var activeNotifiers []notifier.Notifier
-	activeNotifiers = append(activeNotifiers, notifier.ConsoleNotifier{})
-
 	secrets := config.LoadSecrets()
 
 	if secrets.Telegram != nil {
@@ -160,6 +158,16 @@ func runWorkerPool(ctx context.Context, urls []string, concurrency int, note not
 		concurrency = len(urls)
 	}
 
+	consoleNotif := notifier.NewConsoleNotifier(urls)
+	defer consoleNotif.Stop()
+
+	var notifiers []notifier.Notifier
+	notifiers = append(notifiers, consoleNotif)
+	if note != nil {
+		notifiers = append(notifiers, note)
+	}
+	multiNote := notifier.NewMultiNotifier(notifiers...)
+
 	jobs := make(chan string, len(urls))
 	resultsChan := make(chan checker.Result, len(urls))
 
@@ -174,7 +182,7 @@ func runWorkerPool(ctx context.Context, urls []string, concurrency int, note not
 				case <-ctx.Done():
 					return
 				default:
-					res := checker.CheckURLWithOptions(ctx, targetURL, nil, note, opts)
+					res := checker.CheckURLWithOptions(ctx, targetURL, nil, multiNote, opts)
 					resultsChan <- res
 				}
 			}
@@ -195,6 +203,9 @@ func runWorkerPool(ctx context.Context, urls []string, concurrency int, note not
 	}
 
 	sort.Slice(results, func(i, j int) bool {
+		if results[i].IsUp != results[j].IsUp {
+			return !results[i].IsUp
+		}
 		return results[i].CleanURL < results[j].CleanURL
 	})
 

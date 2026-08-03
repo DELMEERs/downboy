@@ -8,8 +8,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"sort"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Notifier is an interface that defines methods for sending status notifications.
@@ -18,14 +23,248 @@ type Notifier interface {
 	NotifyError(url string, err string)
 }
 
-type ConsoleNotifier struct{}
+type itemStatus int
 
-func (ConsoleNotifier) NotifySuccess(targetURL string, statusCode int, duration time.Duration) {
-	fmt.Printf("[%d] %s - %s\n", statusCode, targetURL, duration)
+const (
+	statusInProgress itemStatus = iota
+	statusSuccess
+	statusFailure
+)
+
+var SpinnerFrames = []string{"[   ]", "[-  ]", "[-- ]", "[---]", "[ --]", "[  -]"}
+
+var (
+	successStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00FF87"))
+	failureStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF4365"))
+	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+)
+
+type checkItem struct {
+	rawURL     string
+	cleanURL   string
+	status     itemStatus
+	statusCode int
+	duration   time.Duration
+	errStr     string
 }
 
-func (ConsoleNotifier) NotifyError(targetURL string, errStr string) {
-	fmt.Printf("[error] %s - %s\n", targetURL, errStr)
+type ConsoleNotifier struct {
+	mu         sync.Mutex
+	urls       []string
+	items      []*checkItem
+	itemMap    map[string]*checkItem
+	writer     io.Writer
+	frame      int
+	ticker     *time.Ticker
+	stopChan   chan struct{}
+	doneChan   chan struct{}
+	stopped    bool
+	linesDrawn int
+}
+
+func cleanURL(raw string) string {
+	clean := strings.TrimPrefix(raw, "https://")
+	clean = strings.TrimPrefix(clean, "http://")
+	return clean
+}
+
+func NewConsoleNotifier(urls []string) *ConsoleNotifier {
+	return NewConsoleNotifierWithWriter(urls, os.Stdout)
+}
+
+func NewConsoleNotifierWithWriter(urls []string, w io.Writer) *ConsoleNotifier {
+	if w == nil {
+		w = os.Stdout
+	}
+
+	cn := &ConsoleNotifier{
+		urls:     urls,
+		itemMap:  make(map[string]*checkItem),
+		writer:   w,
+		stopChan: make(chan struct{}),
+		doneChan: make(chan struct{}),
+	}
+
+	for _, u := range urls {
+		clean := cleanURL(u)
+		item := &checkItem{
+			rawURL:   u,
+			cleanURL: clean,
+			status:   statusInProgress,
+		}
+		cn.items = append(cn.items, item)
+		cn.itemMap[u] = item
+		cn.itemMap[clean] = item
+	}
+
+	if len(urls) > 0 {
+		cn.mu.Lock()
+		cn.renderListLocked()
+		cn.mu.Unlock()
+
+		cn.ticker = time.NewTicker(100 * time.Millisecond)
+		go cn.animate()
+	}
+
+	return cn
+}
+
+func (cn *ConsoleNotifier) getWriter() io.Writer {
+	if cn.writer != nil {
+		return cn.writer
+	}
+	return os.Stdout
+}
+
+func (cn *ConsoleNotifier) animate() {
+	for {
+		select {
+		case <-cn.stopChan:
+			close(cn.doneChan)
+			return
+		case <-cn.ticker.C:
+			cn.mu.Lock()
+			if !cn.stopped {
+				cn.frame = (cn.frame + 1) % len(SpinnerFrames)
+				cn.redrawListLocked()
+			}
+			cn.mu.Unlock()
+		}
+	}
+}
+
+func (cn *ConsoleNotifier) formatLineLocked(item *checkItem) string {
+	switch item.status {
+	case statusSuccess:
+		bracket := successStyle.Render("[ ✓ ]")
+		if item.statusCode > 0 {
+			return fmt.Sprintf("%s %s - %d (%s)", bracket, item.cleanURL, item.statusCode, item.duration)
+		}
+		return fmt.Sprintf("%s %s", bracket, item.cleanURL)
+	case statusFailure:
+		bracket := failureStyle.Render("[ X ]")
+		if item.errStr != "" {
+			return fmt.Sprintf("%s %s - %s", bracket, item.cleanURL, item.errStr)
+		}
+		return fmt.Sprintf("%s %s", bracket, item.cleanURL)
+	default:
+		frameStr := SpinnerFrames[cn.frame]
+		bracket := spinnerStyle.Render(frameStr)
+		return fmt.Sprintf("%s %s", bracket, item.cleanURL)
+	}
+}
+
+func (cn *ConsoleNotifier) renderListLocked() {
+	if len(cn.items) == 0 {
+		return
+	}
+	w := cn.getWriter()
+	for _, item := range cn.items {
+		fmt.Fprintln(w, cn.formatLineLocked(item))
+	}
+	cn.linesDrawn = len(cn.items)
+}
+
+func (cn *ConsoleNotifier) redrawListLocked() {
+	if len(cn.items) == 0 {
+		return
+	}
+	w := cn.getWriter()
+	if cn.linesDrawn > 0 {
+		fmt.Fprintf(w, "\033[%dA", cn.linesDrawn)
+	}
+	for _, item := range cn.items {
+		fmt.Fprintf(w, "\033[2K\r%s\n", cn.formatLineLocked(item))
+	}
+	cn.linesDrawn = len(cn.items)
+}
+
+func (cn *ConsoleNotifier) NotifySuccess(targetURL string, statusCode int, duration time.Duration) {
+	cn.mu.Lock()
+	defer cn.mu.Unlock()
+
+	clean := cleanURL(targetURL)
+	if cn.itemMap != nil {
+		item, ok := cn.itemMap[targetURL]
+		if !ok {
+			item, ok = cn.itemMap[clean]
+		}
+		if ok {
+			item.status = statusSuccess
+			item.statusCode = statusCode
+			item.duration = duration
+			if !cn.stopped {
+				cn.redrawListLocked()
+			}
+			return
+		}
+	}
+
+	w := cn.getWriter()
+	bracket := successStyle.Render("[ ✓ ]")
+	fmt.Fprintf(w, "%s %s - %d (%s)\n", bracket, clean, statusCode, duration)
+}
+
+func (cn *ConsoleNotifier) NotifyError(targetURL string, errStr string) {
+	cn.mu.Lock()
+	defer cn.mu.Unlock()
+
+	clean := cleanURL(targetURL)
+	if cn.itemMap != nil {
+		item, ok := cn.itemMap[targetURL]
+		if !ok {
+			item, ok = cn.itemMap[clean]
+		}
+		if ok {
+			item.status = statusFailure
+			item.errStr = errStr
+			if !cn.stopped {
+				cn.redrawListLocked()
+			}
+			return
+		}
+	}
+
+	w := cn.getWriter()
+	bracket := failureStyle.Render("[ X ]")
+	fmt.Fprintf(w, "%s %s - %s\n", bracket, clean, errStr)
+}
+
+func (cn *ConsoleNotifier) Stop() {
+	cn.mu.Lock()
+	if cn.stopped {
+		cn.mu.Unlock()
+		return
+	}
+	cn.stopped = true
+	if cn.ticker != nil {
+		cn.ticker.Stop()
+		close(cn.stopChan)
+	} else {
+		close(cn.doneChan)
+	}
+	cn.mu.Unlock()
+
+	if cn.ticker != nil {
+		<-cn.doneChan
+	}
+
+	cn.mu.Lock()
+	defer cn.mu.Unlock()
+
+	sort.Slice(cn.items, func(i, j int) bool {
+		if cn.items[i].status != cn.items[j].status {
+			if cn.items[i].status == statusFailure {
+				return true
+			}
+			if cn.items[j].status == statusFailure {
+				return false
+			}
+		}
+		return cn.items[i].cleanURL < cn.items[j].cleanURL
+	})
+
+	cn.redrawListLocked()
 }
 
 type TelegramNotifier struct {
