@@ -32,6 +32,10 @@ var (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	configPath := flag.String("config", "", "path to json config file containing website urls")
 	concurrency := flag.Int("c", 20, "concurrency limit (worker pool size)")
 	flag.IntVar(concurrency, "concurrency", 20, "concurrency limit (worker pool size)")
@@ -66,20 +70,20 @@ func main() {
 	if len(urls) == 0 {
 		if *configPath == "" {
 			flag.Usage()
-			os.Exit(1)
+			return 1
 		}
 
 		configUrls, err := config.LoadUrlsFromJSON(*configPath)
 		if err != nil {
 			fmt.Println(errorStyle.Render("error loading websites from config:"), err)
-			os.Exit(1)
+			return 1
 		}
 		urls = configUrls
 	}
 
 	if len(urls) == 0 {
 		flag.Usage()
-		os.Exit(1)
+		return 1
 	}
 
 	var activeNotifiers []notifier.Notifier
@@ -109,11 +113,14 @@ func main() {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
 	go func() {
-		<-sigChan
-		cancel()
-		fmt.Println("\n" + infoStyle.Render("shutting down downboy..."))
-		os.Exit(0)
+		select {
+		case <-sigChan:
+			cancel()
+			fmt.Println("\n" + infoStyle.Render("shutting down downboy..."))
+		case <-ctx.Done():
+		}
 	}()
 
 	fmt.Println(titleStyle.Render("🐕 downboy starting uptime checks..."))
@@ -124,9 +131,9 @@ func main() {
 		results := runWorkerPool(ctx, urls, *concurrency, note, opts)
 		allUp := printSummary(results)
 		if !allUp {
-			os.Exit(1)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
 
 	// Continuous mode
@@ -139,7 +146,7 @@ func main() {
 
 		select {
 		case <-ctx.Done():
-			return
+			return 0
 		case <-ticker.C:
 		}
 	}
