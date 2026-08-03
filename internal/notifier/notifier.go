@@ -44,7 +44,7 @@ func NewTelegramNotifier(token, chatID string) *TelegramNotifier {
 	}
 }
 
-func (tn *TelegramNotifier) NotifySuccess(targetURL string, statusCode int, duration time.Duration) {
+func (*TelegramNotifier) NotifySuccess(targetURL string, statusCode int, duration time.Duration) {
 	// Optional: telegram success notification
 }
 
@@ -99,7 +99,7 @@ func NewDiscordNotifier(webhookURL string) *DiscordNotifier {
 	}
 }
 
-func (dn *DiscordNotifier) NotifySuccess(targetURL string, statusCode int, duration time.Duration) {}
+func (*DiscordNotifier) NotifySuccess(targetURL string, statusCode int, duration time.Duration) {}
 
 func (dn *DiscordNotifier) NotifyError(targetURL string, errStr string) {
 	payload := map[string]interface{}{
