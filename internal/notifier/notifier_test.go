@@ -64,7 +64,7 @@ func (m *mockNotifier) NotifySuccess(_ string, _ int, _ time.Duration) {
 	m.successCount++
 }
 
-func (m *mockNotifier) NotifyError(url string, err string) {
+func (m *mockNotifier) NotifyError(_ string, _ string) {
 	m.errorCount++
 }
 
