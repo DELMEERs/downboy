@@ -149,3 +149,15 @@ func TestMultiNotifier(t *testing.T) {
 		t.Errorf("expected NotifyError to be called on all inner notifiers")
 	}
 }
+
+func BenchmarkConsoleNotifierNotify(b *testing.B) {
+	var buf bytes.Buffer
+	urls := []string{"google.com", "github.com", "golang.org"}
+	cn := NewConsoleNotifierWithWriter(urls, &buf)
+	defer cn.Stop()
+
+	b.ReportAllocs()
+	for b.Loop() {
+		cn.NotifySuccess("google.com", 200, 15*time.Millisecond)
+	}
+}

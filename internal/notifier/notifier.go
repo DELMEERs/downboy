@@ -9,7 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +38,24 @@ var (
 	successStyle = theme.SuccessStyle
 	failureStyle = theme.FailureStyle
 	spinnerStyle = theme.SpinnerStyle
+
+	cachedSuccessBracket = successStyle.Render("[ ✓ ]")
+	cachedFailureBracket = failureStyle.Render("[ X ]")
+	cachedSpinnerFrames  []string
+
+	bufPool = sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
 )
+
+func init() {
+	cachedSpinnerFrames = make([]string, len(SpinnerFrames))
+	for i, frame := range SpinnerFrames {
+		cachedSpinnerFrames[i] = spinnerStyle.Render(frame)
+	}
+}
 
 type checkItem struct {
 	rawURL     string
@@ -62,10 +80,15 @@ type ConsoleNotifier struct {
 	linesDrawn int
 }
 
+// cleanURL removes protocol prefixes using string slicing (zero-allocation when prefix present)
 func cleanURL(raw string) string {
-	clean := strings.TrimPrefix(raw, "https://")
-	clean = strings.TrimPrefix(clean, "http://")
-	return clean
+	if strings.HasPrefix(raw, "https://") {
+		return raw[8:]
+	}
+	if strings.HasPrefix(raw, "http://") {
+		return raw[7:]
+	}
+	return raw
 }
 
 func NewConsoleNotifier(urls []string) *ConsoleNotifier {
@@ -79,7 +102,8 @@ func NewConsoleNotifierWithWriter(urls []string, w io.Writer) *ConsoleNotifier {
 
 	cn := &ConsoleNotifier{
 		urls:     urls,
-		itemMap:  make(map[string]*checkItem),
+		items:    make([]*checkItem, 0, len(urls)),
+		itemMap:  make(map[string]*checkItem, len(urls)*2),
 		writer:   w,
 		stopChan: make(chan struct{}),
 		doneChan: make(chan struct{}),
@@ -125,7 +149,7 @@ func (cn *ConsoleNotifier) animate() {
 		case <-cn.ticker.C:
 			cn.mu.Lock()
 			if !cn.stopped {
-				cn.frame = (cn.frame + 1) % len(SpinnerFrames)
+				cn.frame = (cn.frame + 1) % len(cachedSpinnerFrames)
 				cn.redrawListLocked()
 			}
 			cn.mu.Unlock()
@@ -133,24 +157,32 @@ func (cn *ConsoleNotifier) animate() {
 	}
 }
 
-func (cn *ConsoleNotifier) formatLineLocked(item *checkItem) string {
+// formatLineLockedToBuf writes the item state directly to a bytes.Buffer to avoid intermediate string allocations
+func (cn *ConsoleNotifier) formatLineLockedToBuf(buf *bytes.Buffer, item *checkItem) {
 	switch item.status {
 	case statusSuccess:
-		bracket := successStyle.Render("[ ✓ ]")
+		buf.WriteString(cachedSuccessBracket)
+		buf.WriteByte(' ')
+		buf.WriteString(item.cleanURL)
 		if item.statusCode > 0 {
-			return fmt.Sprintf("%s %s - %d (%s)", bracket, item.cleanURL, item.statusCode, item.duration)
+			buf.WriteString(" - ")
+			buf.WriteString(strconv.Itoa(item.statusCode))
+			buf.WriteString(" (")
+			buf.WriteString(item.duration.String())
+			buf.WriteByte(')')
 		}
-		return fmt.Sprintf("%s %s", bracket, item.cleanURL)
 	case statusFailure:
-		bracket := failureStyle.Render("[ X ]")
+		buf.WriteString(cachedFailureBracket)
+		buf.WriteByte(' ')
+		buf.WriteString(item.cleanURL)
 		if item.errStr != "" {
-			return fmt.Sprintf("%s %s - %s", bracket, item.cleanURL, item.errStr)
+			buf.WriteString(" - ")
+			buf.WriteString(item.errStr)
 		}
-		return fmt.Sprintf("%s %s", bracket, item.cleanURL)
 	default:
-		frameStr := SpinnerFrames[cn.frame]
-		bracket := spinnerStyle.Render(frameStr)
-		return fmt.Sprintf("%s %s", bracket, item.cleanURL)
+		buf.WriteString(cachedSpinnerFrames[cn.frame])
+		buf.WriteByte(' ')
+		buf.WriteString(item.cleanURL)
 	}
 }
 
@@ -159,9 +191,15 @@ func (cn *ConsoleNotifier) renderListLocked() {
 		return
 	}
 	w := cn.getWriter()
+	buf := bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufPool.Put(buf)
+
 	for _, item := range cn.items {
-		fmt.Fprintln(w, cn.formatLineLocked(item))
+		cn.formatLineLockedToBuf(buf, item)
+		buf.WriteByte('\n')
 	}
+	_, _ = w.Write(buf.Bytes())
 	cn.linesDrawn = len(cn.items)
 }
 
@@ -170,12 +208,19 @@ func (cn *ConsoleNotifier) redrawListLocked() {
 		return
 	}
 	w := cn.getWriter()
+	buf := bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufPool.Put(buf)
+
 	if cn.linesDrawn > 0 {
-		fmt.Fprintf(w, "\033[%dA", cn.linesDrawn)
+		fmt.Fprintf(buf, "\033[%dA", cn.linesDrawn)
 	}
 	for _, item := range cn.items {
-		fmt.Fprintf(w, "\033[2K\r%s\n", cn.formatLineLocked(item))
+		buf.WriteString("\033[2K\r")
+		cn.formatLineLockedToBuf(buf, item)
+		buf.WriteByte('\n')
 	}
+	_, _ = w.Write(buf.Bytes())
 	cn.linesDrawn = len(cn.items)
 }
 
@@ -201,8 +246,20 @@ func (cn *ConsoleNotifier) NotifySuccess(targetURL string, statusCode int, durat
 	}
 
 	w := cn.getWriter()
-	bracket := successStyle.Render("[ ✓ ]")
-	fmt.Fprintf(w, "%s %s - %d (%s)\n", bracket, clean, statusCode, duration)
+	buf := bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufPool.Put(buf)
+
+	buf.WriteString(cachedSuccessBracket)
+	buf.WriteByte(' ')
+	buf.WriteString(clean)
+	buf.WriteString(" - ")
+	buf.WriteString(strconv.Itoa(statusCode))
+	buf.WriteString(" (")
+	buf.WriteString(duration.String())
+	buf.WriteString(")\n")
+
+	_, _ = w.Write(buf.Bytes())
 }
 
 func (cn *ConsoleNotifier) NotifyError(targetURL string, errStr string) {
@@ -226,8 +283,18 @@ func (cn *ConsoleNotifier) NotifyError(targetURL string, errStr string) {
 	}
 
 	w := cn.getWriter()
-	bracket := failureStyle.Render("[ X ]")
-	fmt.Fprintf(w, "%s %s - %s\n", bracket, clean, errStr)
+	buf := bufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufPool.Put(buf)
+
+	buf.WriteString(cachedFailureBracket)
+	buf.WriteByte(' ')
+	buf.WriteString(clean)
+	buf.WriteString(" - ")
+	buf.WriteString(errStr)
+	buf.WriteByte('\n')
+
+	_, _ = w.Write(buf.Bytes())
 }
 
 func (cn *ConsoleNotifier) Stop() {
@@ -252,16 +319,17 @@ func (cn *ConsoleNotifier) Stop() {
 	cn.mu.Lock()
 	defer cn.mu.Unlock()
 
-	sort.Slice(cn.items, func(i, j int) bool {
-		if cn.items[i].status != cn.items[j].status {
-			if cn.items[i].status == statusFailure {
-				return true
+	// memory and speed optimization: slices.SortFunc uses type-safe sorting without reflection overhead
+	slices.SortFunc(cn.items, func(a, b *checkItem) int {
+		if a.status != b.status {
+			if a.status == statusFailure {
+				return -1
 			}
-			if cn.items[j].status == statusFailure {
-				return false
+			if b.status == statusFailure {
+				return 1
 			}
 		}
-		return cn.items[i].cleanURL < cn.items[j].cleanURL
+		return strings.Compare(a.cleanURL, b.cleanURL)
 	})
 
 	cn.redrawListLocked()
@@ -302,7 +370,7 @@ func (tn *TelegramNotifier) NotifyError(targetURL string, errStr string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewBufferString(formData.Encode()))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(formData.Encode()))
 		if err != nil {
 			fmt.Printf("[tg] error creating request: %v\n", err)
 			return
@@ -329,6 +397,11 @@ type DiscordNotifier struct {
 	client     *http.Client
 }
 
+// concrete struct for JSON encoding eliminates map[string]interface{} interface boxing overhead
+type discordPayload struct {
+	Content string `json:"content"`
+}
+
 func NewDiscordNotifier(webhookURL string) *DiscordNotifier {
 	return &DiscordNotifier{
 		webhookURL: webhookURL,
@@ -341,8 +414,8 @@ func NewDiscordNotifier(webhookURL string) *DiscordNotifier {
 func (*DiscordNotifier) NotifySuccess(_ string, _ int, _ time.Duration) {}
 
 func (dn *DiscordNotifier) NotifyError(targetURL string, errStr string) {
-	payload := map[string]interface{}{
-		"content": fmt.Sprintf("🚨 **ALERT! Website is DOWN**\n**URL:** `%s`\n**Error:** `%s`\n**Time:** `%s`",
+	payload := discordPayload{
+		Content: fmt.Sprintf("🚨 **ALERT! Website is DOWN**\n**URL:** `%s`\n**Error:** `%s`\n**Time:** `%s`",
 			targetURL, errStr, time.Now().Format("2006-01-02 15:04:05")),
 	}
 
@@ -356,7 +429,7 @@ func (dn *DiscordNotifier) NotifyError(targetURL string, errStr string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, dn.webhookURL, bytes.NewBuffer(bodyBytes))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, dn.webhookURL, bytes.NewReader(bodyBytes))
 		if err != nil {
 			fmt.Printf("[discord] error creating request: %v\n", err)
 			return
@@ -386,26 +459,16 @@ func NewMultiNotifier(notifiers ...Notifier) *MultiNotifier {
 	return &MultiNotifier{notifiers: notifiers}
 }
 
+// direct loop eliminates goroutine spawning & sync.WaitGroup overhead for memory/console updates
 func (mn *MultiNotifier) NotifySuccess(url string, statusCode int, duration time.Duration) {
-	var wg sync.WaitGroup
 	for _, n := range mn.notifiers {
-		wg.Add(1)
-		go func(notifier Notifier) {
-			defer wg.Done()
-			notifier.NotifySuccess(url, statusCode, duration)
-		}(n)
+		n.NotifySuccess(url, statusCode, duration)
 	}
-	wg.Wait()
 }
 
+// direct loop eliminates goroutine spawning & sync.WaitGroup overhead for memory/console updates
 func (mn *MultiNotifier) NotifyError(url string, err string) {
-	var wg sync.WaitGroup
 	for _, n := range mn.notifiers {
-		wg.Add(1)
-		go func(notifier Notifier) {
-			defer wg.Done()
-			notifier.NotifyError(url, err)
-		}(n)
+		n.NotifyError(url, err)
 	}
-	wg.Wait()
 }

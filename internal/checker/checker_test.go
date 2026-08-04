@@ -262,3 +262,21 @@ func TestCheckURLWithOptions_Retries(t *testing.T) {
 		t.Errorf("expected 2 attempts, got %d", attempts)
 	}
 }
+
+func BenchmarkNormalizeURL(b *testing.B) {
+	raw := "https://example.com/api/v1/health"
+	for b.Loop() {
+		_, _ = normalizeURL(raw)
+	}
+}
+
+func BenchmarkCheckURLWithOptions(b *testing.B) {
+	withMockHead(&testing.T{}, func(_ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})
+	opts := DefaultOptions()
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = CheckURLWithOptions(b.Context(), "https://example.com", nil, nil, opts)
+	}
+}

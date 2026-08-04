@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sort"
+	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -81,7 +82,7 @@ func run() int {
 		return 1
 	}
 
-	var activeNotifiers []notifier.Notifier
+	activeNotifiers := make([]notifier.Notifier, 0, 2)
 	secrets := config.LoadSecrets()
 
 	if secrets.Telegram != nil {
@@ -146,25 +147,26 @@ func run() int {
 }
 
 func runWorkerPool(ctx context.Context, urls []string, concurrency int, note notifier.Notifier, opts checker.CheckOptions) []checker.Result {
+	urlCount := len(urls)
 	if concurrency <= 0 {
 		concurrency = 20
 	}
-	if concurrency > len(urls) {
-		concurrency = len(urls)
+	if concurrency > urlCount {
+		concurrency = urlCount
 	}
 
 	consoleNotif := notifier.NewConsoleNotifier(urls)
 	defer consoleNotif.Stop()
 
-	var notifiers []notifier.Notifier
+	notifiers := make([]notifier.Notifier, 0, 2)
 	notifiers = append(notifiers, consoleNotif)
 	if note != nil {
 		notifiers = append(notifiers, note)
 	}
 	multiNote := notifier.NewMultiNotifier(notifiers...)
 
-	jobs := make(chan string, len(urls))
-	resultsChan := make(chan checker.Result, len(urls))
+	jobs := make(chan string, urlCount)
+	resultsChan := make(chan checker.Result, urlCount)
 
 	var wg sync.WaitGroup
 
@@ -192,16 +194,21 @@ func runWorkerPool(ctx context.Context, urls []string, concurrency int, note not
 	wg.Wait()
 	close(resultsChan)
 
-	var results []checker.Result
+	// memory pre-allocation: pre-size slice capacity to urlCount to eliminate slice grow re-allocations
+	results := make([]checker.Result, 0, urlCount)
 	for r := range resultsChan {
 		results = append(results, r)
 	}
 
-	sort.Slice(results, func(i, j int) bool {
-		if results[i].IsUp != results[j].IsUp {
-			return !results[i].IsUp
+	// speed & memory optimization: slices.SortFunc uses type-safe sorting without reflection overhead
+	slices.SortFunc(results, func(a, b checker.Result) int {
+		if a.IsUp != b.IsUp {
+			if !a.IsUp {
+				return -1
+			}
+			return 1
 		}
-		return results[i].CleanURL < results[j].CleanURL
+		return strings.Compare(a.CleanURL, b.CleanURL)
 	})
 
 	return results
