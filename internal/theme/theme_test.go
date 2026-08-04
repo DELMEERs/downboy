@@ -14,8 +14,8 @@ func TestThemeColors(t *testing.T) {
 	if ColorAccentSecondary != "#800020" {
 		t.Errorf("expected AccentSecondary #800020, got %s", ColorAccentSecondary)
 	}
-	if ColorDarkBackground != "#120206" {
-		t.Errorf("expected DarkBackground #120206, got %s", ColorDarkBackground)
+	if ColorDarkBackground != "#1A1A1A" {
+		t.Errorf("expected DarkBackground #1A1A1A, got %s", ColorDarkBackground)
 	}
 	if ColorDarkBackgroundAlt != "#1A0A0E" {
 		t.Errorf("expected DarkBackgroundAlt #1A0A0E, got %s", ColorDarkBackgroundAlt)
